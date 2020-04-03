@@ -63,7 +63,7 @@ process FastqToSam {
 
     memory "150 GB"
 
-    container "157538628385.dkr.ecr.us-west-2.amazonaws.com/basic_bfx:latest"
+    container "157538628385.dkr.ecr.us-west-2.amazonaws.com/bfx_docker:latest"
 
     errorStrategy 'retry'
     """
@@ -94,7 +94,7 @@ process CollectQualityYieldMetrics {
 
   memory "12 GB"
 
-  container "157538628385.dkr.ecr.us-west-2.amazonaws.com/basic_bfx:latest"
+  container "157538628385.dkr.ecr.us-west-2.amazonaws.com/bfx_docker:latest"
 
   errorStrategy 'retry'
 
@@ -115,7 +115,7 @@ process SamtoFastqAndBwaMemAndMba {
 
   memory "12 GB"
 
-  container "157538628385.dkr.ecr.us-west-2.amazonaws.com/basic_bfx:latest"
+  container "157538628385.dkr.ecr.us-west-2.amazonaws.com/bfx_docker:latest"
 
   errorStrategy 'retry'
 
@@ -193,7 +193,7 @@ process MarkDuplicates {
 
   memory "16 GB"
 
-  container "157538628385.dkr.ecr.us-west-2.amazonaws.com/basic_bfx:latest"
+  container "157538628385.dkr.ecr.us-west-2.amazonaws.com/bfx_docker:latest"
 
   errorStrategy 'retry'
 
@@ -225,7 +225,7 @@ process SortSam {
 
   memory "12 GB"
 
-  container "157538628385.dkr.ecr.us-west-2.amazonaws.com/basic_bfx:latest"
+  container "157538628385.dkr.ecr.us-west-2.amazonaws.com/bfx_docker:latest"
 
   errorStrategy 'retry'
 
@@ -252,7 +252,7 @@ process FixTags {
 
   memory "14 GB"
 
-  container "157538628385.dkr.ecr.us-west-2.amazonaws.com/basic_bfx:latest"
+  container "157538628385.dkr.ecr.us-west-2.amazonaws.com/bfx_docker:latest"
 
   errorStrategy 'retry'
 
@@ -362,7 +362,7 @@ process ValidateBam {
 
   memory "10 GB"
 
-  container "157538628385.dkr.ecr.us-west-2.amazonaws.com/basic_bfx:latest"
+  container "157538628385.dkr.ecr.us-west-2.amazonaws.com/bfx_docker:latest"
 
   errorStrategy 'retry'
 
@@ -399,7 +399,7 @@ process CollectHSMetrics {
 
   memory "10 GB"
 
-  container "157538628385.dkr.ecr.us-west-2.amazonaws.com/basic_bfx:latest"
+  container "157538628385.dkr.ecr.us-west-2.amazonaws.com/bfx_docker:latest"
 
   errorStrategy 'retry'
 
