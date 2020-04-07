@@ -180,6 +180,7 @@ process SamtoFastqAndBwaMemAndMba {
 
     # else ref_alt is empty or could not be found
     else
+      echo "oh no"
       exit 1;
     fi
   """
