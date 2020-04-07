@@ -100,7 +100,7 @@ process CollectQualityYieldMetrics {
 
   """
   java -Djava.io.tmpdir=${params.outdir}/${sample_name}/tmp \
-  -Xmx8G -jar /usr/picard/picard.jar \
+  -Xmx9G -jar /usr/picard/picard.jar \
   CollectQualityYieldMetrics \
     INPUT=${ubam} \
     OQ=true \
