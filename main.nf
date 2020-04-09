@@ -353,7 +353,7 @@ process ValidateBam {
   val ref_fasta
 
   output:
-  tuple val(sample_name), val(tn), file("${recal_bam}") into recal_bam_ch3
+  tuple val(sample_name), val(tn), file("${recal_bam}"), recal_bam into recal_bam_ch3
   tuple val(sample_name), val(tn), file("${sample_name}.dedup.recal_bam_validation_report.txt") into bam_valid_report_ch
 
   """
@@ -469,8 +469,8 @@ process Mutect2 {
   val ref_fasta
   file interval from split_intervals
 
-  tuple val(tumor_name), val(tumor_status), tbam from tumor_ch
-  tuple val(normal_name), val(normal_status), nbam from normal_ch
+  tuple val(tumor_name), val(tumor_status), tbam, tbam2 from tumor_ch
+  tuple val(normal_name), val(normal_status), nbam, nbam2 from normal_ch
 
   output:
   val(tumor_name)
@@ -480,7 +480,11 @@ process Mutect2 {
 
   """
   set -e
-
+  echo ${tbam}
+  echo ${tbam2}
+  echo ${nbam}
+  echo ${nbam2}
+  ls
   gatk --java-options "-Xmx3G" Mutect2 \
       -R ${ref_fasta} \
       -I ${tbam} \
