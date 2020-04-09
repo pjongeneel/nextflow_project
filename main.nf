@@ -353,7 +353,7 @@ process ValidateBam {
   val ref_fasta
 
   output:
-  tuple val(sample_name), val(tn), file("${recal_bam}"), recal_bam into recal_bam_ch3
+  tuple val(sample_name), val(tn), file("${recal_bam}"), file(recal_bam) into recal_bam_ch3
   tuple val(sample_name), val(tn), file("${sample_name}.dedup.recal_bam_validation_report.txt") into bam_valid_report_ch
 
   """
