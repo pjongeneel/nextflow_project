@@ -48,8 +48,6 @@ group_interval = Channel.value(params.sequence_group_interval)
 
 process FastqToSam {
 
-    //publishDir "${params.outdir}/${params.sample_name}/"
-
     input:
     tuple val(prefix), file(fastqs),  val(sample_name), val(tn), val(analyte) from params.inputs
 
@@ -67,9 +65,7 @@ process FastqToSam {
 
     errorStrategy 'retry'
     """
-    mkdir -p ${params.outdir}/${sample_name}/tmp
     java -XX:ParallelGCThreads=1 \
-    -Djava.io.tmpdir=${params.outdir}/${sample_name}/tmp \
     -Xmx120G -jar /usr/picard/picard.jar \
     FastqToSam \
       FASTQ=${fastqs[0]} \
@@ -99,7 +95,7 @@ process CollectQualityYieldMetrics {
   errorStrategy 'retry'
 
   """
-  java -Djava.io.tmpdir=${params.outdir}/${sample_name}/tmp \
+  java \
   -Xmx9G -jar /usr/picard/picard.jar \
   CollectQualityYieldMetrics \
     INPUT=${ubam} \
@@ -136,7 +132,7 @@ process SamtoFastqAndBwaMemAndMba {
     # set the bash variable needed for the command-line
     # if ref_alt has data in it,
     if [ -s ${ref_alt} ]; then
-      java -Djava.io.tmpdir=${params.outdir}/${sample_name}/tmp \
+      java \
       -Xmx5G -jar /usr/picard/picard.jar \
         SamToFastq \
         INPUT=${ubam} \
@@ -145,7 +141,6 @@ process SamtoFastqAndBwaMemAndMba {
         NON_PF=true | \
       /usr/bin/bwa mem -K 10000000 -p -v 3 -t 32 -Y ${ref_fasta} /dev/stdin - 2> >(tee ${sample_name}.aligned.unsorted.bwa.stderr.log >&2) | \
       java -Dsamjdk.compression_level=${params.compression_level} -Xmx3G \
-      -Djava.io.tmpdir=${params.outdir}/${sample_name}/tmp \
       -jar /usr/picard/picard.jar \
       MergeBamAlignment \
         VALIDATION_STRINGENCY=SILENT \
@@ -188,8 +183,6 @@ process SamtoFastqAndBwaMemAndMba {
 
 process MarkDuplicates {
 
-  //publishDir "${params.outdir}/${params.sample_name}/", pattern: "*.txt", mode: 'copy'
-
   cpus 4
 
   memory "16 GB"
@@ -206,7 +199,6 @@ process MarkDuplicates {
 
   """
       java -Dsamjdk.compression_level=${params.compression_level} \
-      -Djava.io.tmpdir=${params.outdir}/${sample_name}/tmp \
       -Xmx14G -jar /usr/picard/picard.jar \
       MarkDuplicates \
         INPUT=${unsort_bam} \
@@ -217,7 +209,6 @@ process MarkDuplicates {
         ASSUME_SORT_ORDER="queryname" \
         CLEAR_DT="false" \
         ADD_PG_TAG_TO_READS=false
-      cp ${sample_name}.dupmetrics.txt ${params.outdir}/${sample_name}/
   """
 }
 
@@ -238,7 +229,6 @@ process SortSam {
 
   """
   java -Dsamjdk.compression_level=${params.compression_level} \
-  -Djava.io.tmpdir=${params.outdir}/${sample_name}/tmp \
   -Xmx8G -jar /usr/picard/picard.jar \
   SortSam \
     INPUT=${mrkdup_bam} \
@@ -268,7 +258,6 @@ process FixTags {
 
   """
   java -XX:ParallelGCThreads=1 \
-  -Djava.io.tmpdir=${params.outdir}/${sample_name}/tmp \
   -Xmx11G -jar /usr/picard/picard.jar \
   SetNmMdAndUqTags \
     INPUT=${dupmark_sorted_bam} \
@@ -306,7 +295,6 @@ process BaseQualRecalWES {
     -R ${ref_fasta} \
     -I ${dup_sort_fix_bam} \
     -O ${sample_name}.recal_report.csv \
-    --TMP_DIR ${params.outdir}/${sample_name}/tmp \
     --use-original-qualities \
     --known-sites ${known_indels_sites_VCFs[0]} \
     --known-sites ${known_indels_sites_VCFs[1]} \
@@ -317,8 +305,6 @@ process BaseQualRecalWES {
 }
 
 process ApplyBQSRWES {
-
-  //publishDir "${params.outdir}/${params.sample_name}/", pattern: "*recal*", mode: 'copy'
 
   cpus 1
 
@@ -344,20 +330,15 @@ process ApplyBQSRWES {
     -I ${dup_sort_fix_bam} \
     -O ${sample_name}.dedup.recal.bam \
     -bqsr ${bqsr_report} \
-    --TMP_DIR ${params.outdir}/${sample_name}/tmp \
     --static-quantized-quals 10 \
     --static-quantized-quals 20 \
     --static-quantized-quals 30 \
     --create-output-bam-index \
     --add-output-sam-program-record
-  cp ${sample_name}.dedup.recal.bam ${params.outdir}/${sample_name}/
-  cp ${sample_name}.dedup.recal.bai ${params.outdir}/${sample_name}/
   """
 }
 
 process ValidateBam {
-
-  //publishDir "${params.outdir}/${params.sample_name}/", pattern: "*.txt", mode: 'copy'
 
   cpus 1
 
@@ -372,12 +353,11 @@ process ValidateBam {
   val ref_fasta
 
   output:
-  tuple val(sample_name), val(tn), val("${params.outdir}/${sample_name}/${sample_name}.dedup.recal.bam"), val("${params.outdir}/${sample_name}/${sample_name}.dedup.recal.bai") into recal_bam_ch3
+  tuple val(sample_name), val(tn), recal_bam into recal_bam_ch3
   tuple val(sample_name), val(tn), file("${sample_name}.dedup.recal_bam_validation_report.txt") into bam_valid_report_ch
 
   """
   java -XX:ParallelGCThreads=1 \
-  -Djava.io.tmpdir=${params.outdir}/${sample_name}/tmp \
   -Xmx7G -jar /usr/picard/picard.jar \
   ValidateSamFile \
     INPUT=${recal_bam} \
@@ -387,14 +367,11 @@ process ValidateBam {
     IGNORE="MISSING_TAG_NM" \
     MAX_OUTPUT=1000000000 \
     IS_BISULFITE_SEQUENCED=false
-  cp ${sample_name}.dedup.recal_bam_validation_report.txt ${params.outdir}/${sample_name}/
   """
 
 }
 
 process CollectHSMetrics {
-
-  //publishDir "${params.outdir}/${params.sample_name}/", pattern: "*.txt", mode: 'copy'
 
   cpus 1
 
@@ -414,7 +391,7 @@ process CollectHSMetrics {
   tuple val(sample_name), val(tn), file("${sample_name}.pertarget_metrics.txt") into per_target_metrics_ch
 
   """
-  java -Djava.io.tmpdir=${params.outdir}/${sample_name}/tmp \
+  java \
   -jar -Xmx6G /usr/picard/picard.jar \
   CollectHsMetrics \
     INPUT=${recal_bam} \
@@ -424,9 +401,6 @@ process CollectHSMetrics {
     TARGET_INTERVALS=${wes_coverage_interval_list} \
     PER_TARGET_COVERAGE=${sample_name}.pertarget_metrics.txt \
     VALIDATION_STRINGENCY=SILENT
-    cp ${sample_name}.hsmetrics.txt ${params.outdir}/${sample_name}/
-    cp ${sample_name}.pertarget_metrics.txt ${params.outdir}/${sample_name}/
-    rm -rf ${params.outdir}/${sample_name}/tmp
   """
 
 }
@@ -495,8 +469,8 @@ process Mutect2 {
   val ref_fasta
   file interval from split_intervals
 
-  tuple val(tumor_name), val(tumor_status), val(tbam), val(tbam_idx) from tumor_ch
-  tuple val(normal_name), val(normal_status), val(nbam), val(nbam_idx) from normal_ch
+  tuple val(tumor_name), val(tumor_status), tbam from tumor_ch
+  tuple val(normal_name), val(normal_status), nbam from normal_ch
 
   output:
   val(tumor_name)
@@ -544,12 +518,10 @@ process MergeVCFs {
   """
   set -e
   ls *vcf > vcfs_to_merge.txt
-  cp vcfs_to_merge.txt ${params.outdir}/${tumor_name}/
   gatk --java-options "-Xmx3G" \
   MergeVcfs \
   -I vcfs_to_merge.txt \
   -O ${tumor_name}.dedup.recal.unfiltered.vcf
-  cp ${tumor_name}.dedup.recal.unfiltered.vcf ${params.outdir}/${tumor_name}/
   """
 
 }
