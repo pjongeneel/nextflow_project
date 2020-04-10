@@ -488,7 +488,7 @@ process Mutect2 {
   val ref_fasta
   file interval from split_intervals
 
-  tuple val(tumor_name), val(tumor_status), tbam from tumor_ch
+  tuple val(tumor_name), val(tumor_status), file(tbam) from tumor_ch
   tuple val(normal_name), val(normal_status), nbam from normal_ch
 
   output:
