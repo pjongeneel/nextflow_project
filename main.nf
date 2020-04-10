@@ -464,7 +464,7 @@ process Mutect3 {
   errorStrategy 'retry'
 
   input:
-  tupleval(sample_name), val(tn), file(recal_bam) from recal_bam_ch4
+  tuple val(sample_name), val(tn), file(recal_bam) from recal_bam_ch4
 
   """
   set -e
