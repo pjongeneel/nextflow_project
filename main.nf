@@ -353,7 +353,7 @@ process ValidateBam {
   val ref_fasta
 
   output:
-  tuple val(sample_name), val(tn), file(recal_bam) into recal_bam_ch3
+  tuple val(sample_name), val(tn), file(recal_bam) into recal_bam_ch3, recal_bam_ch4
   tuple val(sample_name), val(tn), file("${sample_name}.dedup.recal_bam_validation_report.txt") into bam_valid_report_ch
 
   """
@@ -453,6 +453,25 @@ gnomad_idx = Channel.value(params.gnomad_idx)
 //   """
 
 // }
+
+process Mutect3 {
+  cpus 1
+
+  memory "4 GB"
+
+  container "broadinstitute/gatk:4.0.8.1"
+
+  errorStrategy 'retry'
+
+  input:
+  tupleval(sample_name), val(tn), file(recal_bam) from recal_bam_ch4
+
+  """
+  set -e
+  echo ${recal_bam}
+  ls
+  """
+}
 
 process Mutect2 {
 
