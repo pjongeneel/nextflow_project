@@ -320,8 +320,7 @@ process ApplyBQSRWES {
   val ref_fasta
 
   output:
-  tuple val(sample_name), val(tn), file("${sample_name}.dedup.recal.bam") into recal_bam_ch1, recal_bam_ch2
-  tuple val(sample_name), val(tn), file("${sample_name}.dedup.recal.bai") into recal_bam_idx_ch
+  tuple val(sample_name), val(tn), file("${sample_name}.dedup.recal.bam"), file("${sample_name}.dedup.recal.bai") into recal_bam_ch1, recal_bam_ch2
 
   """
   gatk --java-options -Xmx7G \
@@ -349,11 +348,11 @@ process ValidateBam {
   errorStrategy 'retry'
 
   input:
-  tuple val(sample_name), val(tn), file(recal_bam) from recal_bam_ch1
+  tuple val(sample_name), val(tn), file(recal_bam), file(recal_bam_index) from recal_bam_ch1
   val ref_fasta
 
   output:
-  tuple val(sample_name), val(tn), file(recal_bam) into recal_bam_ch3, recal_bam_ch4
+  tuple val(sample_name), val(tn), file(recal_bam), file(recal_bam_index) into recal_bam_ch3
   tuple val(sample_name), val(tn), file("${sample_name}.dedup.recal_bam_validation_report.txt") into bam_valid_report_ch
 
   """
@@ -382,7 +381,7 @@ process CollectHSMetrics {
   errorStrategy 'retry'
 
   input:
-  tuple val(sample_name), val(tn), file(recal_bam) from recal_bam_ch2
+  tuple val(sample_name), val(tn), file(recal_bam), file(recal_bam_index) from recal_bam_ch2
   val ref_fasta
   val wes_coverage_interval_list
 
@@ -454,24 +453,6 @@ gnomad_idx = Channel.value(params.gnomad_idx)
 
 // }
 
-process Mutect3 {
-  cpus 1
-
-  memory "4 GB"
-
-  container "broadinstitute/gatk:4.0.8.1"
-
-  errorStrategy 'retry'
-
-  input:
-  tuple val(sample_name), val(tn), file(recal_bam) from recal_bam_ch4
-
-  """
-  set -e
-  echo ${recal_bam}
-  ls
-  """
-}
 
 process Mutect2 {
 
@@ -488,8 +469,8 @@ process Mutect2 {
   val ref_fasta
   file interval from split_intervals
 
-  tuple val(tumor_name), val(tumor_status), file(tbam) from tumor_ch
-  tuple val(normal_name), val(normal_status), file(nbam) from normal_ch
+  tuple val(tumor_name), val(tumor_status), file(tbam), file(tbam_index) from tumor_ch
+  tuple val(normal_name), val(normal_status), file(nbam), file(tbam_index) from normal_ch
 
   output:
   val(tumor_name)
