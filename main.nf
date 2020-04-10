@@ -489,7 +489,7 @@ process Mutect2 {
   file interval from split_intervals
 
   tuple val(tumor_name), val(tumor_status), file(tbam) from tumor_ch
-  tuple val(normal_name), val(normal_status), nbam from normal_ch
+  tuple val(normal_name), val(normal_status), file(nbam) from normal_ch
 
   output:
   val(tumor_name)
