@@ -9,35 +9,8 @@ fastq_channel1 = Channel.fromFilePairs(params.input_fastqs)
 attr_channel = Channel.from(sample_attributes)
 attr_channel1 = Channel.from(sample_attributes)
 
-
-
 fastq_channel1.join(attr_channel1).subscribe {println it}
 params.inputs = fastq_channel.join(attr_channel)
-
-// process fake_align {
-
-//   input:
-//   tuple val(sample_name), file(fastqs),  val(tn) from params.input_channels
-
-//   output:
-//   tuple val(sample_name), val(tn), file("unaligned.bam") into ubam_ch1
-
-//   """
-//   echo ${sample_name}, ${tn}
-//   head -n 2 ${fastqs[0]} > "unaligned.bam"
-//   head -n 2 ${fastqs[1]} >> "unaligned.bam"
-//   """
-// }
-
-// process print_align {
-//   input:
-//   tuple val(sample_name), val(tn), file(ubam) from ubam_ch1
-
-//   """
-//   echo ${sample_name}, ${tn}
-//   cat ${ubam} | echo
-//   """
-// }
 
 ref_fasta = Channel.value(params.genome_fasta)
 ref_alt = Channel.value(params.genome_alt)
@@ -61,11 +34,12 @@ process FastqToSam {
 
     memory "150 GB"
 
-    container "157538628385.dkr.ecr.us-west-2.amazonaws.com/bfx_docker:latest"
+    container "699365095167.dkr.ecr.us-west-2.amazonaws.com/bfx_docker:latest"
 
     errorStrategy 'retry'
     """
     java -XX:ParallelGCThreads=1 \
+    -Djava.io.tmpdir=/nextflow/${sample_name}/tmp \
     -Xmx120G -jar /usr/picard/picard.jar \
     FastqToSam \
       FASTQ=${fastqs[0]} \
@@ -90,12 +64,12 @@ process CollectQualityYieldMetrics {
 
   memory "12 GB"
 
-  container "157538628385.dkr.ecr.us-west-2.amazonaws.com/bfx_docker:latest"
+  container "699365095167.dkr.ecr.us-west-2.amazonaws.com/bfx_docker:latest"
 
   errorStrategy 'retry'
 
   """
-  java \
+  java -Djava.io.tmpdir=/nextflow/${sample_name}/tmp \
   -Xmx9G -jar /usr/picard/picard.jar \
   CollectQualityYieldMetrics \
     INPUT=${ubam} \
@@ -111,7 +85,7 @@ process SamtoFastqAndBwaMemAndMba {
 
   memory "12 GB"
 
-  container "157538628385.dkr.ecr.us-west-2.amazonaws.com/bfx_docker:latest"
+  container "699365095167.dkr.ecr.us-west-2.amazonaws.com/bfx_docker:latest"
 
   errorStrategy 'retry'
 
@@ -132,7 +106,7 @@ process SamtoFastqAndBwaMemAndMba {
     # set the bash variable needed for the command-line
     # if ref_alt has data in it,
     if [ -s ${ref_alt} ]; then
-      java \
+      java -Djava.io.tmpdir=/nextflow/${sample_name}/tmp \
       -Xmx5G -jar /usr/picard/picard.jar \
         SamToFastq \
         INPUT=${ubam} \
@@ -141,6 +115,7 @@ process SamtoFastqAndBwaMemAndMba {
         NON_PF=true | \
       /usr/bin/bwa mem -K 10000000 -p -v 3 -t 32 -Y ${ref_fasta} /dev/stdin - 2> >(tee ${sample_name}.aligned.unsorted.bwa.stderr.log >&2) | \
       java -Dsamjdk.compression_level=${params.compression_level} -Xmx3G \
+      -Djava.io.tmpdir=/nextflow/${sample_name}/tmp \
       -jar /usr/picard/picard.jar \
       MergeBamAlignment \
         VALIDATION_STRINGENCY=SILENT \
@@ -187,7 +162,7 @@ process MarkDuplicates {
 
   memory "16 GB"
 
-  container "157538628385.dkr.ecr.us-west-2.amazonaws.com/bfx_docker:latest"
+  container "699365095167.dkr.ecr.us-west-2.amazonaws.com/bfx_docker:latest"
 
   errorStrategy 'retry'
 
@@ -199,6 +174,7 @@ process MarkDuplicates {
 
   """
       java -Dsamjdk.compression_level=${params.compression_level} \
+      -Djava.io.tmpdir=/nextflow/${sample_name}/tmp \
       -Xmx14G -jar /usr/picard/picard.jar \
       MarkDuplicates \
         INPUT=${unsort_bam} \
@@ -217,7 +193,7 @@ process SortSam {
 
   memory "12 GB"
 
-  container "157538628385.dkr.ecr.us-west-2.amazonaws.com/bfx_docker:latest"
+  container "699365095167.dkr.ecr.us-west-2.amazonaws.com/bfx_docker:latest"
 
   errorStrategy 'retry'
 
@@ -229,6 +205,7 @@ process SortSam {
 
   """
   java -Dsamjdk.compression_level=${params.compression_level} \
+  -Djava.io.tmpdir=/nextflow/${sample_name}/tmp \
   -Xmx8G -jar /usr/picard/picard.jar \
   SortSam \
     INPUT=${mrkdup_bam} \
@@ -243,7 +220,7 @@ process FixTags {
 
   memory "14 GB"
 
-  container "157538628385.dkr.ecr.us-west-2.amazonaws.com/bfx_docker:latest"
+  container "699365095167.dkr.ecr.us-west-2.amazonaws.com/bfx_docker:latest"
 
   errorStrategy 'retry'
 
@@ -258,6 +235,7 @@ process FixTags {
 
   """
   java -XX:ParallelGCThreads=1 \
+  -Djava.io.tmpdir=/nextflow/${sample_name}/tmp \
   -Xmx11G -jar /usr/picard/picard.jar \
   SetNmMdAndUqTags \
     INPUT=${dupmark_sorted_bam} \
@@ -295,6 +273,7 @@ process BaseQualRecalWES {
     -R ${ref_fasta} \
     -I ${dup_sort_fix_bam} \
     -O ${sample_name}.recal_report.csv \
+    --TMP_DIR /nextflow/${sample_name}/tmp \
     --use-original-qualities \
     --known-sites ${known_indels_sites_VCFs[0]} \
     --known-sites ${known_indels_sites_VCFs[1]} \
@@ -329,6 +308,7 @@ process ApplyBQSRWES {
     -I ${dup_sort_fix_bam} \
     -O ${sample_name}.dedup.recal.bam \
     -bqsr ${bqsr_report} \
+    --TMP_DIR /nextflow/${sample_name}/tmp \
     --static-quantized-quals 10 \
     --static-quantized-quals 20 \
     --static-quantized-quals 30 \
@@ -343,20 +323,20 @@ process ValidateBam {
 
   memory "10 GB"
 
-  container "157538628385.dkr.ecr.us-west-2.amazonaws.com/bfx_docker:latest"
+  container "699365095167.dkr.ecr.us-west-2.amazonaws.com/bfx_docker:latest"
 
   errorStrategy 'retry'
 
   input:
-  tuple val(sample_name), val(tn), file(recal_bam), file(recal_bam_index) from recal_bam_ch1
+  tuple val(sample_name), val(tn), file(recal_bam), file(recal_bai) from recal_bam_ch1
   val ref_fasta
 
   output:
-  tuple val(sample_name), val(tn), file(recal_bam), file(recal_bam_index) into recal_bam_ch3
-  tuple val(sample_name), val(tn), file("${sample_name}.dedup.recal_bam_validation_report.txt") into bam_valid_report_ch
+  tuple val(sample_name), val(tn), file(recal_bam), file(recal_bai) into recal_bam_ch3
 
   """
   java -XX:ParallelGCThreads=1 \
+  -Djava.io.tmpdir=/nextflow/${sample_name}/tmp \
   -Xmx7G -jar /usr/picard/picard.jar \
   ValidateSamFile \
     INPUT=${recal_bam} \
@@ -376,12 +356,12 @@ process CollectHSMetrics {
 
   memory "10 GB"
 
-  container "157538628385.dkr.ecr.us-west-2.amazonaws.com/bfx_docker:latest"
+  container "699365095167.dkr.ecr.us-west-2.amazonaws.com/bfx_docker:latest"
 
   errorStrategy 'retry'
 
   input:
-  tuple val(sample_name), val(tn), file(recal_bam), file(recal_bam_index) from recal_bam_ch2
+  tuple val(sample_name), val(tn), file(recal_bam), file(recal_bai) from recal_bam_ch2
   val ref_fasta
   val wes_coverage_interval_list
 
@@ -390,7 +370,7 @@ process CollectHSMetrics {
   tuple val(sample_name), val(tn), file("${sample_name}.pertarget_metrics.txt") into per_target_metrics_ch
 
   """
-  java \
+  java -Djava.io.tmpdir=/nextflow/${sample_name}/tmp \
   -jar -Xmx6G /usr/picard/picard.jar \
   CollectHsMetrics \
     INPUT=${recal_bam} \
@@ -421,38 +401,6 @@ split_intervals = Channel.fromPath(params.split_intervals).splitText(by:20000, f
 gnomad = Channel.value(params.gnomad)
 gnomad_idx = Channel.value(params.gnomad_idx)
 
-// replaced the splitintervals step with in built nextflow splitText Channel above
-
-// process SplitIntervals {
-
-//   cpus 1
-
-//   memory "4 GB"
-
-//   disk "40 GB"
-
-//   container "broadinstitute/gatk:4.0.8.1"
-
-
-//   input:
-//   val split_intervals
-//   val ref_fasta
-
-//   output:
-//   file("interval-files/*.intervals") into intervals_ch
-
-//   """
-//   set -e
-//   mkdir interval-files
-//   gatk --java-options -Xmx3G SplitIntervals \
-//       -R ${ref_fasta} \
-//       -L ${split_intervals} \
-//       -scatter ${params.scatter_count} \
-//       -O interval-files
-//   """
-
-// }
-
 
 process Mutect2 {
 
@@ -469,20 +417,17 @@ process Mutect2 {
   val ref_fasta
   file interval from split_intervals
 
-  tuple val(tumor_name), val(tumor_status), file(tbam), file(tbam_index) from tumor_ch
-  tuple val(normal_name), val(normal_status), file(nbam), file(tbam_index) from normal_ch
+  tuple val(tumor_name), val(tumor_status), val(tbam), val(tbam_idx) from tumor_ch
+  tuple val(normal_name), val(normal_status), val(nbam), val(nbam_idx) from normal_ch
 
   output:
   val(tumor_name)
-  file("${interval}-output.vcf") into dummy_vcf_ch
   file("${interval}-output.vcf") into unfiltered_vcf_ch
   file("${interval}-output.vcf.idx") into unfiltered_vcf_idx_ch
 
   """
   set -e
-  echo ${tbam}
-  echo ${nbam}
-  ls
+
   gatk --java-options "-Xmx3G" Mutect2 \
       -R ${ref_fasta} \
       -I ${tbam} \
@@ -508,22 +453,16 @@ process MergeVCFs {
 
   input:
   val(tumor_name)
-  // Not using this properly, using here to block process till all upstream Mutect2 are done
-  file(dummy_merge) from dummy_vcf_ch.collectFile(name:"dummy.txt", skip:100000)
-
   file(unfiltered_vcfs) from unfiltered_vcf_ch.collect()
   file(unfiltered_vcf_idx) from unfiltered_vcf_idx_ch.collect()
 
-  output:
-  file "${tumor_name}.dedup.recal.unfiltered.vcf" into unfiltered_m2_vcf_ch
 
   """
   set -e
-  ls *vcf > vcfs_to_merge.txt
   gatk --java-options "-Xmx3G" \
   MergeVcfs \
-  -I vcfs_to_merge.txt \
-  -O ${tumor_name}.dedup.recal.unfiltered.vcf
+  -I ${unfiltered_vcfs} \
+  -O final.dedup.recal.unfiltered.vcf
   """
 
 }
