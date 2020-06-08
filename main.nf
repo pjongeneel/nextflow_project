@@ -441,28 +441,4 @@ process Mutect2 {
 
 }
 
-process MergeVCFs {
 
-  cpus 1
-
-  memory "4 GB"
-
-  container "broadinstitute/gatk:4.0.8.1"
-
-  errorStrategy 'retry'
-
-  input:
-  val(tumor_name)
-  file(unfiltered_vcfs) from unfiltered_vcf_ch.collect()
-  file(unfiltered_vcf_idx) from unfiltered_vcf_idx_ch.collect()
-
-
-  """
-  set -e
-  gatk --java-options "-Xmx3G" \
-  MergeVcfs \
-  -I ${unfiltered_vcfs} \
-  -O final.dedup.recal.unfiltered.vcf
-  """
-
-}
